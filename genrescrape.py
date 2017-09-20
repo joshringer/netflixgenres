@@ -244,15 +244,18 @@ def main():
 
     logging.basicConfig(level=log_level)
     scraper = Scraper((email, password), profile=profile)
+    # preempt login to raise errors early
+    scraper.login()
     scan = scraper.genre_scan()
-
     print('# Netflix Genre List')
     print('')
-    for number, name, url in scan:
-        print('* {} ([#{}]({}))'.format(name, number, url))
+    try:
+        for number, name, url in scan:
+            print('* {} ([#{}]({}))'.format(name, number, url))
 
-    print('')
-    print('_Generated on {:%B %d %Y %H:%M:%S %Z}_'.format(datetime.now(timezone.utc)))
+    finally:
+        print('')
+        print('_Generated on {:%B %d %Y %H:%M:%S %Z}_'.format(datetime.now(timezone.utc)))
 
 
 if __name__ == '__main__':
