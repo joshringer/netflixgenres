@@ -234,10 +234,14 @@ def main():
     arg_parser.add_argument('--email')
     arg_parser.add_argument('--password')
     arg_parser.add_argument('--profile')
-    arg_parser.add_argument('-v', action='count')
+    arg_parser.add_argument('-v', action='count', default=0)
     ns = arg_parser.parse_args()
 
-    email = ns.email or print('Email: ', file=sys.stderr) and input()
+    if ns.email:
+        email = ns.email
+    else:
+        print('Email:', end=' ', file=sys.stderr)
+        email = input()
     password = ns.password or getpass()
     profile = ns.profile
     log_level = logging.WARNING - 10 * ns.v
