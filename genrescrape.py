@@ -1,0 +1,259 @@
+#!/usr/bin/env python3
+"""
+Netflix Genre Scraper.
+
+This tool scrapes the Netflix website to gather a list of available genres
+and links to their respective pages. Please use sparingly to avoid annoying
+the Netflix webservers.
+"""
+import argparse
+import logging
+import sys
+from datetime import datetime, timezone
+from getpass import getpass
+from html.parser import HTMLParser
+from urllib.parse import urljoin, urlparse
+
+from requests import Session
+
+
+log = logging.getLogger(__name__)
+
+
+class FormParser(HTMLParser):
+    """Basic serialization of HTML forms."""
+
+    def reset(self):
+        self.form_data = {}
+        self._current_form = None
+        super().reset()
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == 'form':
+            self._current_form = attrs.get('id', len(self.form_data))
+            self.form_data[self._current_form] = {'attrs': attrs, 'fields': {}}
+            log.debug('Form %s open', self._current_form)
+
+        if self._current_form is not None and 'name' in attrs:
+            log.debug('Form  %s: %r', tag, attrs)
+            self.form_data[self._current_form]['fields'][attrs['name']] = attrs.get('value')
+
+    def handle_endtag(self, tag):
+        if tag == 'form':
+            log.debug('Form %s close', self._current_form)
+            self._current_form = None
+
+
+class ProfileListParser(HTMLParser):
+    """Parse "Who's Watching" profile list."""
+
+    def reset(self):
+        self.profiles = []
+        self._current_link = None
+        self._current_name = ''
+        super().reset()
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == 'a' and 'profile-link' in attrs.get('class', '').split():
+            self._current_link = attrs['href']
+            log.debug('Profile link %s open', self._current_link)
+
+    def handle_endtag(self, tag):
+        if tag == 'a' and self._current_link:
+            log.debug('Profile link %s close', self._current_link)
+            self.profiles.append((self._current_name.strip(), self._current_link))
+            self._current_link = None
+            self._current_name = ''
+
+    def handle_data(self, data):
+        if self._current_link:
+            self._current_name += data
+
+
+class CaptureParser(HTMLParser):
+    """
+    Capture data inside a set of tags, chosen according to given criteria.
+
+    Subclass and define self.criteria
+    """
+
+    @staticmethod
+    def criteria(tag, attrs):
+        raise NotImplementedError()
+
+    def reset(self):
+        self.strings = []
+        self._current = ''
+        self._inside = 0
+        super().reset()
+
+    def handle_starttag(self, tag, attrs):
+        if self._inside > 0:
+            self._inside += 1
+        else:
+            attrs = dict(attrs)
+            if self.criteria(tag, attrs):
+                self._inside += 1
+                log.debug('%s %s open', self.__class__.__name__[:-6], tag)
+
+    def handle_endtag(self, tag):
+        if self._inside > 0:
+            self._inside -= 1
+            if self._inside == 0:
+                log.debug('%s %s close', self.__class__.__name__[:-6], tag)
+                self.strings.append(self._current)
+                self._current = ''
+
+    def handle_data(self, data):
+        if self._inside > 0:
+            log.debug('Capture  %r', data)
+            self._current += data
+
+
+class ErrorMessageParser(CaptureParser):
+    """Find error messages on page."""
+
+    @staticmethod
+    def criteria(tag, attrs):
+        return 'ui-message-error' in attrs.get('class', '').split()
+
+
+class TitleParser(CaptureParser):
+    """Find genre title on genre page."""
+
+    @staticmethod
+    def criteria(tag, attrs):
+        return 'genreTitle' in attrs.get('class', '').split()
+
+
+class Scraper(object):
+    """
+    The scraping engine.
+
+    Initialize with credentials, then run Scraper.genre_scan to scrape genre
+    pages.
+    """
+
+    base_url = 'https://www.netflix.com/'
+    login_path = '/login'
+
+    def __init__(self, auth, profile=None):
+        self.auth = auth
+        self.profile = profile
+        self.session = Session()
+
+    def is_login(self, url):
+        parsed_url = urlparse(url)
+        return parsed_url.path.lower().endswith(self.login_path.lower())
+
+    def login_if_required(self, response):
+        if not self.is_login(response.url):
+            return response
+
+        form_parser = FormParser()
+        form_parser.feed(response.text)
+        form_parser.close()
+        forms = form_parser.form_data
+        for form in forms.values():
+            if form['fields'].get('action') == 'loginAction':
+                log.debug('Login form: %r', form)
+                url = urljoin(response.url, form['attrs']['action'])
+                data = dict(form['fields'])
+                data.update({'email': self.auth[0], 'password': self.auth[1]})
+                response = self.session.request(form['attrs']['method'], url, data=data)
+                response.raise_for_status()
+                if self.is_login(response.url):
+                    error_parser = ErrorMessageParser()
+                    error_parser.feed(response.text)
+                    error_parser.close()
+                    raise RuntimeError(error_parser.strings[1])  # 0 is javascript warning
+                else:
+                    return response
+
+    _profile_cycle_counter = 0
+
+    def choose_profile_if_required(self, response):
+        profile_list_parser = ProfileListParser()
+        profile_list_parser.feed(response.text)
+        profile_list_parser.close()
+        profiles = profile_list_parser.profiles
+        names = []
+        for name, path in profiles:
+            names.append(name)
+            if self.profile is None or name.lower() == self.profile.lower():
+                url = urljoin(response.url, path)
+                log.debug('Choose profile %s (%s)', name, url)
+                response = self.session.get(url)
+                response.raise_for_status()
+                break
+        else:
+            if names:
+                raise ValueError('Profile {} not found in {}'.format(self.profile, names))
+
+        return response
+
+    def get(self, path):
+        """Get an arbitrary page, logging in as necessary, return response."""
+        url = urljoin(self.base_url, path)
+        response = self.session.get(url)
+        response.raise_for_status()
+        return self.choose_profile_if_required(
+            self.login_if_required(
+                response
+            )
+        )
+
+    def login(self):
+        """Perform login."""
+        return self.get(self.login_path)
+
+    def genre_scan(self, min=1, max=100000):
+        """
+        Scan for genres.
+
+        min and max define range of genre numbers to scan for.
+        Returns an iterator of (genre number, genre title, url) for each genre
+        found.
+        """
+        for number in range(min, max):
+            path = '/browse/genre/{}'.format(number)
+            response = self.get(path)
+            if response.status_code == 200:
+                title_parser = TitleParser()
+                title_parser.feed(response.text)
+                title_parser.close()
+                if len(title_parser.strings) > 0:
+                    yield number, title_parser.strings[0], response.url
+
+
+def main():
+    """Entrypoint to genre scraper script."""
+    arg_parser = argparse.ArgumentParser()
+    arg_parser.add_argument('--email')
+    arg_parser.add_argument('--password')
+    arg_parser.add_argument('--profile')
+    arg_parser.add_argument('-v', action='count')
+    ns = arg_parser.parse_args()
+
+    email = ns.email or print('Email: ', file=sys.stderr) and input()
+    password = ns.password or getpass()
+    profile = ns.profile
+    log_level = logging.WARNING - 10 * ns.v
+
+    logging.basicConfig(level=log_level)
+    scraper = Scraper((email, password), profile=profile)
+    scan = scraper.genre_scan()
+
+    print('# Netflix Genre List')
+    print('')
+    for number, name, url in scan:
+        print('* {} ([#{}]({}))'.format(name, number, url))
+
+    print('')
+    print('_Generated on {:%B %d %Y %H:%M:%S %Z}_'.format(datetime.now(timezone.utc)))
+
+
+if __name__ == '__main__':
+    main()
