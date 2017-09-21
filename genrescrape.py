@@ -8,6 +8,8 @@ the Netflix webservers.
 """
 import argparse
 import logging
+import os.path
+import shelve
 import sys
 from datetime import datetime, timezone
 from getpass import getpass
@@ -207,25 +209,52 @@ class Scraper(object):
 
     def login(self):
         """Perform login."""
+        log.info('Login')
         return self.get(self.login_path)
 
-    def genre_scan(self, min=1, max=100000):
+    def genre_scan(self, min=1, max=100000, fresh=False):
         """
         Scan for genres.
 
         min and max define range of genre numbers to scan for.
         Returns an iterator of (genre number, genre title, url) for each genre
         found.
+
+        This scan creates and uses a cache to store previously-found genres and
+        avoid making unnecessary network requests. If you want to refresh the
+        cache, set fresh=True.
         """
-        for number in range(min, max):
-            path = '/browse/genre/{}'.format(number)
-            response = self.get(path)
-            if response.status_code == 200:
-                title_parser = TitleParser()
-                title_parser.feed(response.text)
-                title_parser.close()
-                if len(title_parser.strings) > 0:
-                    yield number, title_parser.strings[0], response.url
+        cache_filename = os.path.join(os.path.dirname(__file__), '.genrecache')
+        with shelve.open(cache_filename) as genre_cache:
+            if fresh:
+                genre_cache.clear()
+
+            for number in range(min, max):
+                cache_key = str(number)  # shelf needs a string key
+                if cache_key in genre_cache:
+                    log.debug('Found %s in cache: %r', cache_key, genre_cache[cache_key])
+                    if genre_cache[cache_key]:
+                        title, url = genre_cache[cache_key]
+                        log.info('Genre %d %s [cached]', number, title)
+                        yield number, title, url
+                else:
+                    path = '/browse/genre/{}'.format(number)
+                    try:
+                        response = self.get(path)
+                    except Exception:
+                        log.warning('GET %s error', path, exc_info=True)
+                        continue
+
+                    title_parser = TitleParser()
+                    title_parser.feed(response.text)
+                    title_parser.close()
+                    if len(title_parser.strings) > 0:
+                        title = title_parser.strings[0]
+                        log.info('Genre %d %s', number, title)
+                        genre_cache[cache_key] = (title, response.url)
+                        yield number, title, response.url
+                    else:
+                        genre_cache[cache_key] = None
 
 
 def main():
@@ -235,6 +264,7 @@ def main():
     arg_parser.add_argument('--password')
     arg_parser.add_argument('--profile')
     arg_parser.add_argument('-v', action='count', default=0)
+    arg_parser.add_argument('--fresh', action='store_true', default=False)
     ns = arg_parser.parse_args()
 
     if ns.email:
@@ -250,7 +280,7 @@ def main():
     scraper = Scraper((email, password), profile=profile)
     # preempt login to raise errors early
     scraper.login()
-    scan = scraper.genre_scan()
+    scan = scraper.genre_scan(fresh=ns.fresh)
     print('# Netflix Genre List')
     print('')
     try:
