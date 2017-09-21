@@ -19,6 +19,12 @@ from urllib.parse import urljoin, urlparse
 from requests import Session
 
 
+LOG_FMT = {
+    'style': '{',
+    'format': '{levelname:1.1}: {message}',
+}
+
+
 log = logging.getLogger(__name__)
 
 
@@ -275,10 +281,11 @@ def main():
     profile = ns.profile
     log_level = logging.WARNING - 10 * ns.v
 
-    logging.basicConfig(level=log_level)
+    logging.basicConfig(level=log_level, **LOG_FMT)
     scraper = Scraper((email, password), profile=profile)
     # preempt login to raise errors early
     scraper.login()
+    started = datetime.now(timezone.utc)
     scan = scraper.genre_scan(fresh=ns.fresh)
     print('# Netflix Genre List')
     print('')
@@ -286,9 +293,11 @@ def main():
         for number, name, url in scan:
             print('* {} ([#{}]({}))'.format(name, number, url))
 
+    except (KeyboardInterrupt, SystemExit):
+        log.warning('Scan interrupted.')
     finally:
         print('')
-        print('_Generated on {:%B %d %Y %H:%M:%S %Z}_'.format(datetime.now(timezone.utc)))
+        print('_Generated on {:%B %d %Y %H:%M:%S %Z}_'.format(started))
 
 
 if __name__ == '__main__':

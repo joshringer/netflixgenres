@@ -9,13 +9,13 @@ import logging
 import re
 import shelve
 
-from genrescrape import Scraper
+from genrescrape import LOG_FMT, Scraper
+
+
+GENRE_REGEX = re.compile(r'\* (.*) \(\[#(\d*)\]\((.*)\)\)')
 
 
 log = logging.getLogger(__name__)
-
-
-genre_regex = re.compile(r'\* (.*) \(\[#(\d*)\]\((.*)\)\)')
 
 
 def recover_cache(from_file):
@@ -24,7 +24,7 @@ def recover_cache(from_file):
     count = 0
     with shelve.open(Scraper.genre_cache_fn) as cache:
         for line in from_file:
-            match = genre_regex.match(line)
+            match = GENRE_REGEX.match(line)
             if match:
                 log.debug('Found entry %r', match.groups())
                 title = match.group(1)
@@ -45,7 +45,7 @@ def main():
 
     log_level = logging.WARNING - 10 * ns.v
 
-    logging.basicConfig(level=log_level)
+    logging.basicConfig(level=log_level, **LOG_FMT)
 
     with open(ns.filename) as infile:
         recoveries = recover_cache(infile)
