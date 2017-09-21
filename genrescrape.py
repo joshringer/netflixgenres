@@ -141,6 +141,8 @@ class Scraper(object):
     base_url = 'https://www.netflix.com/'
     login_path = '/login'
 
+    genre_cache_fn = os.path.join(os.path.dirname(__file__), '.genrecache')
+
     def __init__(self, auth, profile=None):
         self.auth = auth
         self.profile = profile
@@ -173,8 +175,6 @@ class Scraper(object):
                     raise RuntimeError(error_parser.strings[1])  # 0 is javascript warning
                 else:
                     return response
-
-    _profile_cycle_counter = 0
 
     def choose_profile_if_required(self, response):
         profile_list_parser = ProfileListParser()
@@ -224,8 +224,7 @@ class Scraper(object):
         avoid making unnecessary network requests. If you want to refresh the
         cache, set fresh=True.
         """
-        cache_filename = os.path.join(os.path.dirname(__file__), '.genrecache')
-        with shelve.open(cache_filename) as genre_cache:
+        with shelve.open(self.genre_cache_fn) as genre_cache:
             if fresh:
                 genre_cache.clear()
 
