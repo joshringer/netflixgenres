@@ -1,4 +1,7 @@
-# Netflix Genre List
+---
+layout: default
+---
 
+Choose a range below:
 
-_Generated on September 20 2017 12:21:16 UTC_
+{% include toc.html %}

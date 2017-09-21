@@ -3,3 +3,10 @@ theme: jekyll-theme-cayman
 title: Netflix Genre List
 description: All the Netflix genres
 show_downloads: false
+
+defaults:
+  -
+    scope:
+      path: genres
+    values:
+      layout: list
