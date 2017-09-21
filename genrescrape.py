@@ -235,14 +235,13 @@ class Scraper(object):
                 genre_cache.clear()
 
             for number in range(min, max):
-                cache_key = str(number)  # shelf needs a string key
-                if cache_key in genre_cache:
-                    log.debug('Found %s in cache: %r', cache_key, genre_cache[cache_key])
-                    if genre_cache[cache_key]:
-                        title, url = genre_cache[cache_key]
-                        log.info('Genre %d %s [cached]', number, title)
-                        yield number, title, url
-                else:
+                cache_key = str(number)
+                try:
+                    value = genre_cache[cache_key]  # shelf needs a string key
+                except Exception as exc:
+                    if not isinstance(exc, KeyError):
+                        log.exception('Error retreiving %s from cache')
+
                     path = '/browse/genre/{}'.format(number)
                     try:
                         response = self.get(path)
@@ -260,6 +259,11 @@ class Scraper(object):
                         yield number, title, response.url
                     else:
                         genre_cache[cache_key] = None
+                else:
+                    log.debug('Found %s in cache: %r', cache_key, value)
+                    if value:
+                        log.info('Genre %d %s [cached]', number, value[0])
+                        yield (number,) + value
 
 
 def main():
@@ -270,6 +274,8 @@ def main():
     arg_parser.add_argument('--profile')
     arg_parser.add_argument('-v', action='count', default=0)
     arg_parser.add_argument('--fresh', action='store_true', default=False)
+    arg_parser.add_argument('min', type=int, default=1)
+    arg_parser.add_argument('max', type=int, default=5000)
     ns = arg_parser.parse_args()
 
     if ns.email:
@@ -286,8 +292,8 @@ def main():
     # preempt login to raise errors early
     scraper.login()
     started = datetime.now(timezone.utc)
-    scan = scraper.genre_scan(fresh=ns.fresh)
-    print('# Netflix Genre List')
+    scan = scraper.genre_scan(ns.min, ns.max, fresh=ns.fresh)
+    print('# Genres {}–{}'.format(ns.min, ns.max))
     print('')
     try:
         for number, name, url in scan:
