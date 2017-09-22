@@ -5,24 +5,25 @@ $large-breakpoint: 32em;
 $medium-breakpoint: 24em;
 
 // Headers
-// $header-heading-color: #fff !default;
-$header-bg-color: #141414;
-$header-bg-color-secondary: #e50914;
+$header-heading-color: #e50914;
+$header-heading-color-secondary: #8c8c8c;
+$header-bg-color: #333;
+$header-bg-color-secondary: #000;
 
 // Text
-// $section-headings-color: #159957 !default;
-// $body-text-color: #606c71 !default;
+$section-headings-color: #1a1a1a;
+$body-text-color: #333;
 $body-link-color: #e50914;
-// $blockquote-text-color: #819198 !default;
+$blockquote-text-color: #999;
 
 // Code
-// $code-bg-color: #f3f6fa !default;
-// $code-text-color: #567482 !default;
+$code-bg-color: #e6e6e6;
+$code-text-color: #333;
 
 // Borders
-$border-color: #e50914;
-// $table-border-color: #e9ebec !default;
-// $hr-border-color: #eff0f1 !default;
+$border-color: #ff0a16;
+$table-border-color: #737373;
+$hr-border-color: #737373;
 
 @import "{{ site.theme }}";
 
@@ -30,16 +31,19 @@ $border-color: #e50914;
   padding-top: 1em;
   padding-bottom: 1em;
   background-image:
-    linear-gradient(
-      120deg,
+    radial-gradient(
+      ellipse at bottom,
       $header-bg-color,
-      $header-bg-color-secondary,
-      $header-bg-color
+      $header-bg-color-secondary
     );
 }
 
 .page-header .btn {
   display: none;
+}
+
+.project-tagline {
+  color: $header-heading-color-secondary;
 }
 
 .main-content .toc ul {
