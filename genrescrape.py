@@ -269,10 +269,10 @@ class Scraper(object):
 def main():
     """Entrypoint to genre scraper script."""
     arg_parser = argparse.ArgumentParser()
-    arg_parser.add_argument('--email')
-    arg_parser.add_argument('--password')
-    arg_parser.add_argument('--profile')
-    arg_parser.add_argument('-v', action='count', default=0)
+    arg_parser.add_argument('-e', '--email')
+    arg_parser.add_argument('-p', '--password')
+    arg_parser.add_argument('-P', '--profile')
+    arg_parser.add_argument('-v', '--verbose', action='count', default=0)
     arg_parser.add_argument('--fresh', action='store_true', default=False)
     arg_parser.add_argument('min', type=int, default=1)
     arg_parser.add_argument('max', type=int, default=5000)
@@ -285,7 +285,7 @@ def main():
         email = input()
     password = ns.password or getpass()
     profile = ns.profile
-    log_level = logging.WARNING - 10 * ns.v
+    log_level = logging.WARNING - 10 * ns.verbose
 
     logging.basicConfig(level=log_level, **LOG_FMT)
     scraper = Scraper((email, password), profile=profile)
