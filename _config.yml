@@ -4,9 +4,19 @@ title: Netflix Genre List
 description: All the Netflix genres
 show_downloads: false
 
+collections:
+  genres:
+    output: true
+
 defaults:
   -
     scope:
-      path: genres
+      path: ""
+      type: genres
     values:
       layout: list
+
+ignore:
+  README.md
+
+permalink: pretty
