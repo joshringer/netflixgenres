@@ -20,3 +20,6 @@ ignore:
   README.md
 
 permalink: pretty
+
+liquid:
+  error_mode: strict

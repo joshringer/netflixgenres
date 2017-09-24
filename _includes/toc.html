@@ -1,6 +1,7 @@
 <ul>
-  {% if page.url != "/" %}<li class="btn"><a href="{{ site.github.url }}/">Home</a></li>{% endif -%}
-  {% for page in site.genres -%}
-  <li class="btn"><a href="{{ page.url | prepend: site.github.url }}">{{ page.title }}</a></li>
+  {% if page.url != "/" %}<li class="btn"><a href="{{ '/' | relative_url }}">Home</a></li>{% endif -%}
+  {% assign ordered_pages = site.genres | sort: "order" %}
+  {% for page in ordered_pages -%}
+  <li class="btn"><a href="{{ page.url | relative_url }}">{{ page.title }}</a></li>
   {% endfor -%}
 </ul>
