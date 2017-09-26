@@ -10,3 +10,7 @@ So here it is.
 Choose a range below:
 
 {% include toc.html %}
+
+_Note:_ This listing is largely for intrigue and inspiration. Most of the
+categories, when visited, will be empty. This is presumably due to Netflix's
+large turnover of titles and regional availability.
